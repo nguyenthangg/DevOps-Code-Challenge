@@ -1,148 +1,298 @@
-Provide your solution here:
+🏦 Highly Available Trading Platform Architecture
 
-Cloudfront, S3, Route53, API Gateway, EKS, RDS Aurora, RDS Proxy, Network Load Balancer, Elastic Cache, SNS
+This repository documents the architecture design of a highly available, scalable trading platform inspired by modern cryptocurrency exchanges.
+The system is designed to support global users, low-latency trading operations, and enterprise-grade resiliency using a private-first cloud architecture.
 
-AWS Services and Their Roles in the System:
-1. CloudFront
-Role: AWS's global Content Delivery Network (CDN).
+📌 Architecture Goals
 
-Purpose:
+High availability across multiple Availability Zones and Regions
 
-Caches and delivers static/dynamic content (e.g., web assets, APIs) with low latency.
+Low latency global trading access
 
-Integrates with S3 (for static hosting) or API Gateway (for APIs).
+Fully private backend infrastructure
 
-Provides DDoS protection and HTTPS via AWS Shield and ACM certificates.
+Horizontal scalability during market spikes
 
-2. S3 (Simple Storage Service)
-Role: Scalable object storage.
+Strong security posture (zero public workloads)
 
-Purpose:
+Cost-efficient scaling model
 
-Stores static files (HTML, JS, images) for web apps (often paired with CloudFront).
+🧭 High-Level Architecture
+Traffic Flow
+Users
+  ↓
+Route53 (DNS + Health Checks)
+  ↓
+CloudFront + WAF (Edge Security & CDN)
+  ↓
+Global Accelerator (Low-latency routing)
+  ↓
+Regional Entry Layer
+  ↓
+Internal Load Balancer (Private)
+  ↓
+EKS Cluster (Trading Microservices)
+  ↓
+Aurora Global Database
+🌎 Multi-Region Deployment
 
-Hosts logs, backups, or raw data for processing.
+The system runs in two AWS regions:
 
-3. Route 53
-Role: DNS and domain management service.
+Region	Role
+Region A	Primary (Active)
+Region B	Secondary / Disaster Recovery
 
-Purpose:
+Each region contains:
 
-Routes user requests to CloudFront, ALB, or API Gateway via DNS records (A/AAAA, CNAME, Alias).
+Multi-AZ VPC
 
-Supports health checks and failover for high availability.
+Private Kubernetes workloads
 
-4. API Gateway
-Role: Fully managed API management layer.
+Regional database cluster
 
-Purpose:
+Internal load balancing
 
-Exposes REST/HTTP APIs to external users, integrates with backend services (e.g., EKS, Lambda).
+Independent scaling capability
 
-Handles authentication, throttling, and request/response transformations.
+🧱 Network Architecture
+Subnet Design
+Subnet Type	Purpose
+Public Subnets	Edge load balancers only
+Private App Subnets	EKS worker nodes
+Private DB Subnets	Aurora databases
+NAT Subnets	Outbound internet access
 
-5. EKS (Elastic Kubernetes Service)
-Role: Managed Kubernetes service.
+✅ No compute resources have public IP addresses.
 
-Purpose:
+🌍 Edge Layer
+CloudFront
 
-Hosts containerized microservices (e.g., Order Service, User Service).
+Global CDN
 
-Scales dynamically and deploys across Availability Zones for resilience.
+TLS termination
 
-6. RDS Aurora
-Role: High-performance managed relational database.
+Static content caching
 
-Purpose:
+Reduces backend load
 
-Stores transactional data (e.g., user accounts, orders) with MySQL/PostgreSQL compatibility.
+Improves latency worldwide
 
-Offers multi-AZ replication for failover and read replicas for scalability.
+AWS WAF
 
-7. RDS Proxy
-Role: Database connection pool manager.
+Protects APIs from attacks
 
-Purpose:
+SQL injection & XSS protection
 
-Reduces overhead on Aurora by managing persistent connections (critical for serverless apps like Lambda).
+Rate limiting & bot control
 
-Improves security (IAM authentication) and failover handling.
+Global Accelerator
 
-8. Network Load Balancer (NLB)
-Role: Layer 4 (TCP/UDP) traffic distributor.
+Anycast static IPs
 
-Purpose:
+Routes users to nearest healthy region
 
-Routes traffic to EKS pods or EC2 instances based on IP/port.
+Fast regional failover
 
-Handles high-throughput, low-latency workloads (e.g., gaming, APIs).
+Optimized TCP routing for trading APIs
 
-9. ElastiCache
-Role: Managed Redis/Memcached service.
+⚖️ Load Balancing Strategy
+Public Entry Load Balancer
 
-Purpose:
+Receives traffic only from edge services
 
-Caches frequently accessed data (e.g., session stores, database query results) to reduce Aurora load.
+Terminates HTTPS
 
-Improves application performance (sub-millisecond latency).
+Forwards traffic internally
 
-10. SNS (Simple Notification Service)
-Role: Pub/sub messaging service.
+Internal Load Balancer (Private)
 
-Purpose:
+Lives in private subnets across AZs
 
-Sends alerts (Amazon Alert™) or triggers workflows (e.g., order confirmations via email/SMS).
+Handles ingress into Kubernetes
 
-Integrates with Lambda, SQS, or HTTP endpoints.
+No direct internet exposure
 
+☸️ Compute Layer — Kubernetes (EKS)
 
-Elaboration on why each cloud service is used and what are the alternatives considered ?
+Amazon EKS hosts all trading platform services.
 
-Answer:
+Example Microservices
 
-1. CloudFront
-Why Used:
+User Service
 
-Performance: Global CDN with edge locations reduces latency for users worldwide.
+Order API
 
-Security: Integrated DDoS protection (AWS Shield) and HTTPS via ACM.
+Wallet Service
 
-Cost-Effective: Pay-as-you-go pricing with no upfront commitments.
+Market Data Service
 
-3. Route 53
-Why Used:
+Trading Gateway
 
-Reliability: 100% SLA uptime, global DNS resolution.
+WebSocket Streaming Service
 
-4. API Gateway
-Why Used:
+Risk Engine
 
-API Gateway: Handles API design, authentication, and authorization integrate with HTTP endpoints, and other services. Manages API lifecycle, monitoring, and security.
+Scaling
+Mechanism	Purpose
+HPA	Pod auto scaling
+Karpenter / Cluster Autoscaler	Node provisioning
+Multi-AZ scheduling	Failure tolerance
 
-5. EKS
-Why Used:
+Benefits:
 
-Containerization: Kubernetes-based container orchestration for microservices. Easy to scale, manage, and secure. integrate with AWS services.
-- Easy to create new services and applications -> Flexible and scalable architecture. This system will be resilient to failures, scalable as our task need
-Alternatives:
+Self-healing workloads
 
-Serverless: Elastic Container Service (ECS) or AWS EC2 Autoscaling Group (ASG)
+Rolling deployments
 
-ECS and Lambda both is manage by AWS and provide similar features, but ECS is more flexible and scalable for container orchestration. Scalable base on cloudwatch metrixs.
+Microservice isolation
 
-6. RDS Aurora and RDS Proxy
-Why Used:
-Relational Database Service: MySQL-compatible database for mission-critical applications. Serverless architecture. Dont have to worry about database management and maintenance. When the peak of traffic comes, the database will automatically scale up to handle the load by Read and Write instaces. 
+🗄 Database Layer — Aurora Global Database
+Design
 
-RDS Proxy: Provides a proxy layer for RDS instances, allowing for more granular control over database access and performance.
+Writer cluster in Primary region
 
+Cross-region replication to Secondary region
 
-# Plans for scaling when the product grows beyond your current setup ?
+Reader endpoints for analytics and queries
 
-Could consider Scaling Horizontal and Vertical for EKS clusters for backend. 
+Advantages
 
-With high traffic, we can consider 2-3 NLBs because 1 NLB can handle 1000s of requests but will be timeout relate to the number of requests. additional NLBs can distribute traffic across multiple instances, ensuring high availability and scalability.
+Storage-level replication
 
-Aurora with RDS proxy already can scale up to handle the load by Read and Write instaces.If need we could consider Data Sharding and Replication.
+Low replication lag
 
+Fast disaster recovery promotion
 
+Automatic failover capability
+
+📦 Storage & Supporting Services
+Service	Purpose
+S3	Trade history, audit logs, static assets
+Secrets Manager	Credential management
+CloudWatch	Monitoring & alerting
+IAM	Access control
+🔐 Security Model
+
+The platform follows a private-first / zero-trust design:
+
+No public application servers
+
+Internet access only through edge services
+
+Internal ALB for service exposure
+
+mTLS between services (service mesh ready)
+
+WAF filtering before regional entry
+
+♻️ High Availability Strategy
+Multi-AZ Protection
+
+EKS nodes distributed across AZs
+
+Load balancers span multiple AZs
+
+Aurora cluster replication
+
+Multi-Region Protection
+
+DNS health checks
+
+Global Accelerator failover
+
+Aurora Global Database promotion
+
+Self-Healing
+
+Kubernetes pod rescheduling
+
+Auto node replacement
+
+Health-based routing
+
+📈 Scalability Strategy
+Application Scaling
+
+Horizontal pod autoscaling
+
+Event-driven microservices
+
+Stateless API services
+
+Infrastructure Scaling
+
+Dynamic node provisioning
+
+Regional traffic balancing
+
+CDN caching at edge
+
+Database Scaling
+
+Read replicas
+
+Reader endpoints
+
+Query isolation
+
+💰 Cost Optimization
+
+CDN caching reduces backend compute usage
+
+Auto scaling prevents overprovisioning
+
+Private networking reduces attack-related scaling
+
+Aurora read scaling instead of large single instances
+
+🚀 Future Growth Plan
+Phase 1 — High Growth
+
+Introduce Redis for order book caching
+
+Event streaming using Kafka/MSK
+
+Dedicated node groups for trading workloads
+
+Phase 2 — Exchange Scale
+
+Active-Active regional trading
+
+Order matching sharding
+
+Event-driven ledger architecture
+
+Order → Event Stream → Matching Engine → Ledger
+Phase 3 — Ultra Low Latency
+
+Replace trading path ALB with NLB
+
+Persistent TCP/WebSocket routing
+
+Dedicated compute pools for matching engines
+
+✅ Key Architecture Benefits
+
+Global low-latency access
+
+Enterprise-grade availability
+
+Fully private infrastructure
+
+Elastic scaling during volatility spikes
+
+Production-ready financial system design
+
+📊 Summary
+
+This architecture demonstrates how a modern trading platform can achieve:
+
+High availability across regions
+
+Secure edge-first exposure
+
+Scalable microservices using Kubernetes
+
+Globally replicated data layer
+
+Resilience against infrastructure failures
